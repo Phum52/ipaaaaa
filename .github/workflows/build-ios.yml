@@ -1,0 +1,45 @@
+name: Build iOS IPA (unsigned)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install deps
+        run: |
+          npm install
+          npm install @capacitor/ios@^6.2.0
+
+      - name: Add iOS platform
+        run: |
+          npx cap add ios
+          npx capacitor-assets generate --ios || true
+          npx cap sync ios
+
+      - name: Build (no code signing)
+        run: |
+          cd ios/App
+          xcodebuild -workspace App.xcworkspace -scheme App \
+            -configuration Release -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package IPA
+        run: |
+          mkdir Payload
+          cp -R ios/App/build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -r krapuk.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: krapuk-ipa
+          path: krapuk.ipa
